@@ -14,7 +14,6 @@ namespace expr
 		UnaryExpression,
 		Cast,
 		FunctionCall,
-		MethodCall,
 		MemberAccess,
 		ArrayAccess
 	};
@@ -110,10 +109,11 @@ namespace expr
 		Node* Object;
 		char Field[256];
 	};
-	class MethodCallNode : public FunctionCallNode
+	class CastNode : public Node
 	{
 	public:
-		inline virtual NodeType GetNodeType() { return NodeType::MethodCall; }
+		inline virtual NodeType GetNodeType() { return NodeType::Cast; }
 		Node* Object;
+		int Type;
 	};
 }

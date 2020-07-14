@@ -20,18 +20,16 @@ namespace expr
 		inline const std::string& ErrorMessage() { return m_error; }
 
 	private:
-		Node* m_factor();
-		Node* m_term();
-		Node* m_expr();
-		Node* m_identf();
-		Node* m_extidnt(Node* parent);
-		Node* m_fcall(char* fname);
-		Node* m_array(Node* parent);
-		Node* m_member(Node* parent);
-
-		// ExpressionType m_evaluateType(Node*);
+		Node* m_parseValue();
+		Node* m_parseExpression(int precedence);
+		Node* m_parseIdentifier();
+		Node* m_parseExtIdentifier(Node* parent);
+		Node* m_parseFunctionCall(char* fname);
+		Node* m_parseArrayAccess(Node* parent);
+		Node* m_parseMemberAccess(Node* parent);
 
 	private:
+		bool m_isType(int tokenType);
 		bool m_isLValue(NodeType nodeType);
 		bool m_eat(int tokenType);
 		bool m_isToken(int tokenType);

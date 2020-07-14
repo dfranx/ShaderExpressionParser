@@ -13,6 +13,43 @@ namespace expr
         m_intValue = 0;
         m_buffer = buffer;
         m_bufferEnd = buffer + bufLength;
+
+        m_keywords = {
+            { "float", TokenType_Float },
+            { "float2", TokenType_Float2 },
+            { "float3", TokenType_Float3 },
+            { "float4", TokenType_Float4 },
+            { "vec2", TokenType_Float2 },
+            { "vec3", TokenType_Float3 },
+            { "vec4", TokenType_Float4 },
+            { "float2x2", TokenType_Float2x2 },
+            { "float3x3", TokenType_Float3x3 },
+            { "float4x4", TokenType_Float4x4 },
+            { "mat2", TokenType_Float2x2 },
+            { "mat3", TokenType_Float3x3 },
+            { "mat4", TokenType_Float4x4 },
+            { "int", TokenType_Int },
+            { "int2", TokenType_Int2 },
+            { "int3", TokenType_Int3 },
+            { "int4", TokenType_Int4 },
+            { "ivec2", TokenType_Int2 },
+            { "ivec3", TokenType_Int3 },
+            { "ivec4", TokenType_Int4 },
+            { "uint", TokenType_Uint },
+            { "uint2", TokenType_Uint2 },
+            { "uint3", TokenType_Uint3 },
+            { "uint4", TokenType_Uint4 },
+            { "uvec2", TokenType_Uint2 },
+            { "uvec3", TokenType_Uint3 },
+            { "uvec4", TokenType_Uint4 },
+            { "bool", TokenType_Bool },
+            { "bool2", TokenType_Bool2 },
+            { "bool3", TokenType_Bool3 },
+            { "bool4", TokenType_Bool4 },
+            { "bvec2", TokenType_Bool2 },
+            { "bvec3", TokenType_Bool3 },
+            { "bvec4", TokenType_Bool4 },
+        };
     }
 
     bool Tokenizer::Next()
@@ -104,6 +141,12 @@ namespace expr
             m_curType = TokenType_BooleanLiteral;
             m_intValue = 0;
             m_floatValue = 0.0f;
+        } else {
+            for (const auto& pair : m_keywords)
+                if (strcmp(pair.first, m_curIdentifier) == 0) {
+                    m_curType = pair.second;
+                    break;
+                }
         }
 
         return true;

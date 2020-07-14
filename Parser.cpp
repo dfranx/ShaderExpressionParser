@@ -37,22 +37,65 @@ namespace expr
 
 	Node* Parser::Parse()
 	{
-		/*
-			expr   : term ((PLUS | MINUS) term)*
-			term   : factor ((MUL | DIV | MOD) factor)*
-			factor : (PLUS | MINUS) factor | INTEGER | LPAREN expr RPAREN (member) | identf
-			extidnt: (array | member) (INCREMENT | DECREMENT)
-			identf : (INCREMENT | DECREMENT) IDENTIFIER (fcall | extidnt)
-			fcall  : LPAREN (expr (COMMA expr (COMMA expr ...))) RPAREN (extind)
-			array  : LBRACKET expr RBRACKET (extidnt)
-			member : DOT IDENTIFIER (extidnt)
-		*/
-
 		m_token.Next();
-		Node* ret = m_expr();
+		Node* ret = m_parseExpression(m_opPrecedence[TokenTypeCount]);
+		
+		// leftover tokens
 		if (m_token.GetTokenType() >= 0) {
 			m_error = "Not fully parsed.";
 			m_hasError = true;
+		}
+
+		// check for nulls
+		for (auto& node : m_list) {
+			if (m_hasError) break;
+
+			switch (node->GetNodeType()) {
+			case expr::NodeType::BinaryExpression: {
+				expr::BinaryExpressionNode* bexpr = ((expr::BinaryExpressionNode*)node);
+				if (bexpr->Left == nullptr || bexpr->Right == nullptr)
+					m_hasError = true;
+			} break;
+			case expr::NodeType::FunctionCall: {
+				expr::FunctionCallNode* fcall = ((expr::FunctionCallNode*)node);
+				for (int i = 0; i < fcall->Arguments.size(); i++) {
+					if (fcall->Arguments[i] == nullptr) {
+						m_hasError = true;
+						break;
+					}
+				}
+			} break;
+			case expr::NodeType::UnaryExpression: {
+				expr::UnaryExpressionNode* uexpr = ((expr::UnaryExpressionNode*)node);
+				if (uexpr->Child == nullptr)
+					m_hasError = true;
+			} break;
+			case expr::NodeType::ArrayAccess: {
+				expr::ArrayAccessNode* a_access = ((expr::ArrayAccessNode*)node);
+				if (a_access->Object == nullptr)
+					m_hasError = true;
+
+				for (int i = 0; i < a_access->Indices.size(); i++) {
+					if (a_access->Indices[i] == nullptr) {
+						m_hasError = true;
+						break;
+					}
+				}
+			} break;
+			case expr::NodeType::MemberAccess: {
+				expr::MemberAccessNode* m_access = ((expr::MemberAccessNode*)node);
+				if (m_access->Object == nullptr)
+					m_hasError = true;
+			} break;
+			case expr::NodeType::Cast: {
+				expr::CastNode* cast = ((expr::CastNode*)node);
+				if (cast->Object == nullptr)
+					m_hasError = true;
+			} break;
+			}
+
+			if (m_hasError)
+				m_error = "error occured - null child";
 		}
 
 		return ret;
@@ -82,10 +125,17 @@ namespace expr
 	}
 	bool Parser::m_isLValue(NodeType nodeType)
 	{
-		NodeType nt = (NodeType)nodeType;
-		return (nt == NodeType::ArrayAccess || nt == NodeType::MemberAccess || nt == NodeType::Identifier);
+		return (nodeType == NodeType::ArrayAccess || nodeType == NodeType::MemberAccess || nodeType == NodeType::Identifier);
 	}
-	Node* Parser::m_fcall(char* fname)
+	bool Parser::m_isType(int tokenType)
+	{
+		return (tokenType == TokenType_Bool || tokenType == TokenType_Bool2 || tokenType == TokenType_Bool3 || tokenType == TokenType_Bool4) ||
+			(tokenType == TokenType_Int || tokenType == TokenType_Int2 || tokenType == TokenType_Int3 || tokenType == TokenType_Int4) ||
+			(tokenType == TokenType_Float || tokenType == TokenType_Float2 || tokenType == TokenType_Float3 || tokenType == TokenType_Float4) ||
+			(tokenType == TokenType_Uint || tokenType == TokenType_Uint2 || tokenType == TokenType_Uint3 || tokenType == TokenType_Uint4) ||
+			(tokenType == TokenType_Float2x2 || tokenType == TokenType_Float3x3 || tokenType == TokenType_Float4x4);
+	}
+	Node* Parser::m_parseFunctionCall(char* fname)
 	{
 		FunctionCallNode* node = (FunctionCallNode*)m_allocateNode<FunctionCallNode>();
 		memcpy(node->Name, fname, 256);
@@ -93,13 +143,13 @@ namespace expr
 		/* LPAREN (expr (COMMA expr (COMMA expr ...))) RPAREN */
 		m_eat('(');
 
-		Node* arg = m_expr();
+		Node* arg = m_parseExpression(m_opPrecedence[TokenTypeCount]);
 		while (arg != nullptr) {
 			node->Arguments.push_back(arg);
 
 			if (m_isToken(',')) {
 				m_eat(',');
-				arg = m_expr();
+				arg = m_parseExpression(m_opPrecedence[TokenTypeCount]);
 
 				if (arg == nullptr) {
 					// throw error
@@ -111,29 +161,29 @@ namespace expr
 		m_eat(')');
 
 		Node* ret = node;
-		Node* ext = m_extidnt(node);
+		Node* ext = m_parseExtIdentifier(node);
 		if (ext != nullptr) ret = ext;
 
 		return ret;
 	}
-	Node* Parser::m_array(Node* parent)
+	Node* Parser::m_parseArrayAccess(Node* parent)
 	{
 		ArrayAccessNode* node = (ArrayAccessNode*)m_allocateNode<ArrayAccessNode>();
 		node->Object = parent;
 
 		while (m_isToken('[')) {
 			m_eat('[');
-			node->Indices.push_back(m_expr());
+			node->Indices.push_back(m_parseExpression(m_opPrecedence[TokenTypeCount]));
 			m_eat(']');
 		}
 
 		Node* ret = node;
-		Node* ext = m_extidnt(node);
+		Node* ext = m_parseExtIdentifier(node);
 		if (ext != nullptr) ret = ext;
 
 		return ret;
 	}
-	Node* Parser::m_member(Node* parent)
+	Node* Parser::m_parseMemberAccess(Node* parent)
 	{
 		m_eat('.');
 
@@ -144,17 +194,17 @@ namespace expr
 		m_eat(TokenType_Identifier);
 
 		Node* ret = node;
-		Node* ext = m_extidnt(node);
+		Node* ext = m_parseExtIdentifier(node);
 		if (ext != nullptr) ret = ext;
 
 		return ret;
 	}
-	Node* Parser::m_extidnt(Node* parent)
+	Node* Parser::m_parseExtIdentifier(Node* parent)
 	{
 		if (m_isToken('.'))
-			return m_member(parent);
+			return m_parseMemberAccess(parent);
 		if (m_isToken('['))
-			return m_array(parent);
+			return m_parseArrayAccess(parent);
 
 		// postfix increment / decrement
 		if (m_isToken(TokenType_Increment) || m_isToken(TokenType_Decrement)) {
@@ -174,7 +224,7 @@ namespace expr
 
 		return nullptr; // return parent?
 	}
-	Node* Parser::m_factor()
+	Node* Parser::m_parseValue()
 	{
 		Node* ret = nullptr;
 		if (m_isToken('+') || m_isToken('-')) {
@@ -182,7 +232,7 @@ namespace expr
 			m_eat(operatorType);
 			UnaryExpressionNode* uOp = (UnaryExpressionNode*)m_allocateNode<UnaryExpressionNode>();
 			uOp->Operator = operatorType;
-			uOp->Child = m_factor();
+			uOp->Child = m_parseValue();
 			uOp->IsPost = false;
 			ret = uOp;
 		} else if (m_isToken(TokenType_IntegerLiteral)) {
@@ -190,60 +240,90 @@ namespace expr
 			node->Value = m_token.GetIntValue();
 			m_eat(TokenType_IntegerLiteral);
 			ret = node;
+		} else if (m_isToken(TokenType_FloatLiteral)) {
+			FloatLiteralNode* node = (FloatLiteralNode*)m_allocateNode<FloatLiteralNode>();
+			node->Value = m_token.GetFloatValue();
+			m_eat(TokenType_FloatLiteral);
+			ret = node;
+		} else if (m_isToken(TokenType_BooleanLiteral)) {
+			BooleanLiteralNode* node = (BooleanLiteralNode*)m_allocateNode<BooleanLiteralNode>();
+			node->Value = m_token.GetIntValue();
+			m_eat(TokenType_BooleanLiteral);
+			ret = node;
 		} else if (m_isToken(TokenType_Identifier) || m_isToken(TokenType_Increment) || m_isToken(TokenType_Decrement)) {
-			ret = m_identf();
+			ret = m_parseIdentifier();
 		} else if (m_isToken('(')) {
 			m_eat('(');
-			ret = m_expr();
-			m_eat(')');
+			bool canHaveMember = false;
+			if (m_isType(m_token.GetTokenType())) {
+				int castType = m_token.GetTokenType();
+				m_eat(castType);
+				m_eat(')');
 
-			if (m_isToken('.'))
-				ret = m_member(ret);
+				CastNode* node = (CastNode*)m_allocateNode<CastNode>();
+				node->Object = m_parseValue();
+				node->Type = castType;
+
+				ret = node;
+			} else {
+				canHaveMember = true;
+				ret = m_parseExpression(m_opPrecedence[TokenTypeCount]);
+				m_eat(')');
+			}
+
+			if (m_isToken('.')) {
+				if (canHaveMember)
+					ret = m_parseMemberAccess(ret);
+				else {
+					m_hasError = true;
+					m_error = "invalid member access";
+				}
+			}
+		}
+		else if (m_isType(m_token.GetTokenType())) {
+			// cache identifier
+			char identifier[256];
+			memcpy(identifier, m_token.GetIdentifier(), 256);
+
+			m_eat(m_token.GetTokenType());
+
+			ret = m_parseFunctionCall(identifier);
 		}
 
 		return ret;
 	}
-	Node* Parser::m_term()
+	Node* Parser::m_parseExpression(int prec)
 	{
-		Node* node = m_factor();
-		
-		while (m_isToken('*') || m_isToken('/') || m_isToken('%')) {
+		if (prec == 0)
+			return m_parseValue();
+
+		Node* node = m_parseExpression(prec - 1);
+
+		while (true) {
+			bool shouldContinue = false;
+			for (const auto& op : m_opPrecedence)
+				if (op.second == prec && m_isToken(op.first)) {
+					shouldContinue = true;
+					break;
+				}
+
+			if (!shouldContinue)
+				break;
+
 			int operatorType = m_token.GetTokenType();
 			m_eat(operatorType);
-			
+
 			BinaryExpressionNode* binNode = (BinaryExpressionNode*)m_allocateNode<BinaryExpressionNode>();
 			binNode->Left = node;
 			binNode->Operator = operatorType;
-			binNode->Right = m_factor();
+			binNode->Right = m_parseExpression(prec - 1);
 
 			node = (Node*)binNode;
 		}
 
 		return node;
 	}
-	Node* Parser::m_expr()
-	{
-		Node* node = m_term();
-
-		while (m_isToken('+') || m_isToken('-')) {
-			int operatorType = m_token.GetTokenType();
-
-			if (operatorType == '+')
-				m_eat('+');
-			else if (operatorType == '-')
-				m_eat('-');
-
-			BinaryExpressionNode* binNode = (BinaryExpressionNode*)m_allocateNode<BinaryExpressionNode>();
-			binNode->Left = node;
-			binNode->Operator = operatorType;
-			binNode->Right = m_term();
-
-			node = (Node*)binNode;
-		}
-
-		return node;
-	}
-	Node* Parser::m_identf()
+	Node* Parser::m_parseIdentifier()
 	{
 		// prefix increment / decrement
 		int operatorType = -1;
@@ -264,14 +344,14 @@ namespace expr
 				m_hasError = true;
 			}
 
-			return m_fcall(identifier);
+			return m_parseFunctionCall(identifier);
 		}
 
 		// extended
 		IdentifierNode* node = (IdentifierNode*)m_allocateNode<IdentifierNode>();
 		memcpy(node->Name, identifier, 256);
 		Node* ret = node;
-		Node* ext = m_extidnt(node);
+		Node* ext = m_parseExtIdentifier(node);
 		if (ext != nullptr) ret = ext;
 
 		// prefix increment/decrement

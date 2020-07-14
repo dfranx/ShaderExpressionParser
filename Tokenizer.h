@@ -1,4 +1,5 @@
 #pragma once
+#include <unordered_map>
 
 namespace expr
 {
@@ -16,8 +17,6 @@ namespace expr
         TokenType_Float2x2,
         TokenType_Float3x3,
         TokenType_Float4x4,
-        TokenType_Float4x3,
-        TokenType_Float4x2,
         TokenType_Int,
         TokenType_Int2,
         TokenType_Int3,
@@ -64,6 +63,8 @@ namespace expr
         bool m_readNumber();
 
 	private:
+        std::unordered_map<const char*, TokenType> m_keywords;
+
         char m_curIdentifier[256];
         int m_curType;
 
