@@ -20,8 +20,8 @@ namespace expr
 
 		m_opPrecedence['<'] = 4;
 		m_opPrecedence['>'] = 4;
-		m_opPrecedence[TokenType_LessEqual] = 4;
-		m_opPrecedence[TokenType_GreaterEqual] = 4;
+		m_opPrecedence[TokenType_LessThanEqual] = 4;
+		m_opPrecedence[TokenType_GreaterThanEqual] = 4;
 
 		m_opPrecedence[TokenType_Equal] = 5;
 		m_opPrecedence[TokenType_NotEqual] = 5;
@@ -38,7 +38,7 @@ namespace expr
 	Node* Parser::Parse()
 	{
 		m_token.Next();
-		Node* ret = m_parseExpression(m_opPrecedence[TokenTypeCount]);
+		Node* ret = m_parseTernaryExpression();
 		
 		// leftover tokens
 		if (m_token.GetTokenType() >= 0) {
@@ -135,29 +135,14 @@ namespace expr
 			(tokenType == TokenType_Uint || tokenType == TokenType_Uint2 || tokenType == TokenType_Uint3 || tokenType == TokenType_Uint4) ||
 			(tokenType == TokenType_Float2x2 || tokenType == TokenType_Float3x3 || tokenType == TokenType_Float4x4);
 	}
-	Node* Parser::m_parseFunctionCall(char* fname)
+	Node* Parser::m_parseFunctionCall(char* fname, int tokType)
 	{
 		FunctionCallNode* node = (FunctionCallNode*)m_allocateNode<FunctionCallNode>();
 		memcpy(node->Name, fname, 256);
+		node->TokenType = tokType;
 
-		/* LPAREN (expr (COMMA expr (COMMA expr ...))) RPAREN */
 		m_eat('(');
-
-		Node* arg = m_parseExpression(m_opPrecedence[TokenTypeCount]);
-		while (arg != nullptr) {
-			node->Arguments.push_back(arg);
-
-			if (m_isToken(',')) {
-				m_eat(',');
-				arg = m_parseExpression(m_opPrecedence[TokenTypeCount]);
-
-				if (arg == nullptr) {
-					// throw error
-				}
-			}
-			else arg = nullptr;
-		}
-
+		m_parseArguments(node->Arguments);
 		m_eat(')');
 
 		Node* ret = node;
@@ -173,7 +158,7 @@ namespace expr
 
 		while (m_isToken('[')) {
 			m_eat('[');
-			node->Indices.push_back(m_parseExpression(m_opPrecedence[TokenTypeCount]));
+			node->Indices.push_back(m_parseTernaryExpression());
 			m_eat(']');
 		}
 
@@ -187,17 +172,51 @@ namespace expr
 	{
 		m_eat('.');
 
-		MemberAccessNode* node = (MemberAccessNode*)m_allocateNode<MemberAccessNode>();
-		node->Object = parent;
-		memcpy(node->Field, m_token.GetIdentifier(), 256);
-
+		char identifier[256] = { 0 };
+		memcpy(identifier, m_token.GetIdentifier(), 256);
 		m_eat(TokenType_Identifier);
 
-		Node* ret = node;
-		Node* ext = m_parseExtIdentifier(node);
+		Node* ret = nullptr;
+
+		if (m_isToken('(')) {
+			MethodCallNode* node = (MethodCallNode*)m_allocateNode<MethodCallNode>();
+			memcpy(node->Name, identifier, 256);
+			node->Object = parent;
+			node->TokenType = TokenType_Identifier;
+
+			m_eat('(');
+			m_parseArguments(node->Arguments);
+			m_eat(')');
+
+			ret = (Node*)node;
+		}
+		else {
+			MemberAccessNode* node = (MemberAccessNode*)m_allocateNode<MemberAccessNode>();
+			memcpy(node->Field, identifier, 256);
+			node->Object = parent;
+			ret = (Node*)node;
+		}
+
+		Node* ext = m_parseExtIdentifier(ret);
 		if (ext != nullptr) ret = ext;
 
 		return ret;
+	}
+	void Parser::m_parseArguments(std::vector<Node*>& args)
+	{
+		Node* arg = m_parseTernaryExpression();
+		while (arg != nullptr) {
+			args.push_back(arg);
+
+			if (m_isToken(',')) {
+				m_eat(',');
+				arg = m_parseTernaryExpression();
+
+				if (arg == nullptr)
+					m_hasError = true;
+			}
+			else arg = nullptr;
+		}
 	}
 	Node* Parser::m_parseExtIdentifier(Node* parent)
 	{
@@ -227,7 +246,7 @@ namespace expr
 	Node* Parser::m_parseValue()
 	{
 		Node* ret = nullptr;
-		if (m_isToken('+') || m_isToken('-')) {
+		if (m_isToken('+') || m_isToken('-') || m_isToken('!') || m_isToken('~')) {
 			int operatorType = m_token.GetTokenType();
 			m_eat(operatorType);
 			UnaryExpressionNode* uOp = (UnaryExpressionNode*)m_allocateNode<UnaryExpressionNode>();
@@ -267,7 +286,7 @@ namespace expr
 				ret = node;
 			} else {
 				canHaveMember = true;
-				ret = m_parseExpression(m_opPrecedence[TokenTypeCount]);
+				ret = m_parseTernaryExpression();
 				m_eat(')');
 			}
 
@@ -282,15 +301,34 @@ namespace expr
 		}
 		else if (m_isType(m_token.GetTokenType())) {
 			// cache identifier
+			int tokType = m_token.GetTokenType();
 			char identifier[256];
 			memcpy(identifier, m_token.GetIdentifier(), 256);
 
 			m_eat(m_token.GetTokenType());
 
-			ret = m_parseFunctionCall(identifier);
+			ret = m_parseFunctionCall(identifier, tokType);
 		}
 
 		return ret;
+	}
+	Node* Parser::m_parseTernaryExpression()
+	{
+		Node* node = m_parseExpression(m_opPrecedence[TokenTypeCount]);
+
+		if (m_isToken('?')) {
+			m_eat('?');
+
+			TernaryExpressionNode* ternNode = (TernaryExpressionNode*)m_allocateNode<TernaryExpressionNode>();
+			ternNode->Condition = node;
+			ternNode->OnTrue = m_parseTernaryExpression();
+			m_eat(':');
+			ternNode->OnFalse = m_parseTernaryExpression();
+
+			node = (Node*)ternNode;
+		}
+
+		return node;
 	}
 	Node* Parser::m_parseExpression(int prec)
 	{
@@ -333,6 +371,7 @@ namespace expr
 		}
 
 		// cache identifier
+		int identTokType = m_token.GetTokenType();
 		char identifier[256];
 		memcpy(identifier, m_token.GetIdentifier(), 256);
 		m_eat(TokenType_Identifier);
@@ -344,7 +383,7 @@ namespace expr
 				m_hasError = true;
 			}
 
-			return m_parseFunctionCall(identifier);
+			return m_parseFunctionCall(identifier, identTokType);
 		}
 
 		// extended

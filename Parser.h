@@ -15,18 +15,21 @@ namespace expr
 		Node* Parse();
 
 		void Clear();
+		std::vector<Node*>& GetList() { return m_list; }
 
 		inline bool Error() { return m_hasError; }
 		inline const std::string& ErrorMessage() { return m_error; }
 
 	private:
 		Node* m_parseValue();
+		Node* m_parseTernaryExpression();
 		Node* m_parseExpression(int precedence);
 		Node* m_parseIdentifier();
 		Node* m_parseExtIdentifier(Node* parent);
-		Node* m_parseFunctionCall(char* fname);
+		Node* m_parseFunctionCall(char* fname, int tokType);
 		Node* m_parseArrayAccess(Node* parent);
 		Node* m_parseMemberAccess(Node* parent);
+		void m_parseArguments(std::vector<Node*>& args);
 
 	private:
 		bool m_isType(int tokenType);

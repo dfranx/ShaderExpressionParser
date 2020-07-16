@@ -74,7 +74,7 @@ namespace expr
             return true;
         } else if (m_buffer[0] == '<') {
             if (m_buffer[1] == '=') {
-                m_curType = TokenType_LessEqual;
+                m_curType = TokenType_LessThanEqual;
                 m_buffer += 2;
                 return true;
             }
@@ -85,7 +85,7 @@ namespace expr
             }
         } else if (m_buffer[0] == '>') {
             if (m_buffer[1] == '=') {
-                m_curType = TokenType_GreaterEqual;
+                m_curType = TokenType_GreaterThanEqual;
                 m_buffer += 2;
                 return true;
             }
@@ -164,6 +164,7 @@ namespace expr
         case '{': case '}':
         case ';': case '!':
         case ',': case '.':
+        case '?': case ':':
         case '|': case '&': case '^': case '~':
             return true;
         }

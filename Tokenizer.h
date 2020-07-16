@@ -32,8 +32,8 @@ namespace expr
 
         TokenType_Equal,
         TokenType_NotEqual,
-        TokenType_LessEqual,
-        TokenType_GreaterEqual,
+        TokenType_LessThanEqual,
+        TokenType_GreaterThanEqual,
         TokenType_LogicAnd,
         TokenType_LogicOr,
         TokenType_BitshiftLeft,

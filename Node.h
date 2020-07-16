@@ -11,9 +11,11 @@ namespace expr
 		BooleanLiteral,
 		Identifier,
 		BinaryExpression,
+		TernaryExpression,
 		UnaryExpression,
 		Cast,
 		FunctionCall,
+		MethodCall,
 		MemberAccess,
 		ArrayAccess
 	};
@@ -78,6 +80,13 @@ namespace expr
 		int Operator;
 		Node *Left, *Right;
 	};
+	class TernaryExpressionNode : public Node
+	{
+	public:
+		inline virtual NodeType GetNodeType() { return NodeType::TernaryExpression; }
+		Node* Condition;
+		Node* OnTrue, * OnFalse;
+	};
 	class UnaryExpressionNode : public Node
 	{
 	public:
@@ -92,6 +101,7 @@ namespace expr
 		inline virtual NodeType GetNodeType() { return NodeType::FunctionCall; }
 		char Name[256];
 		std::vector<Node*> Arguments;
+		int TokenType;
 	};
 	class ArrayAccessNode : public Node
 	{
@@ -108,6 +118,12 @@ namespace expr
 
 		Node* Object;
 		char Field[256];
+	};
+	class MethodCallNode : public FunctionCallNode
+	{
+	public:
+		inline virtual NodeType GetNodeType() { return NodeType::MethodCall; }
+		Node* Object;
 	};
 	class CastNode : public Node
 	{
