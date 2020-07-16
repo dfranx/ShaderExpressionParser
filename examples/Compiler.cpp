@@ -40,6 +40,7 @@ public:
 		BasicBlock& bb = *m_func;
 		bb->opReturn();
 		m_module->assignIDs();
+
 		return (int)inst->getResultId();
 	}
 
@@ -71,7 +72,13 @@ private:
 			}
 
 			m_convert(bexpr->Operator, leftInstr, rightInstr, leftInstr, rightInstr);
-			
+
+			if (leftInstr->getType()->isVector() && rightInstr->getType()->isVector())
+				if (leftInstr->getType()->getVectorComponentCount() != rightInstr->getType()->getVectorComponentCount()) {
+					m_error = true;
+					return nullptr;
+				}
+
 			if (leftInstr->getType()->getBaseType().isFloat()) {
 				if (bexpr->Operator == '+')
 					return bb->opFAdd(leftInstr, rightInstr);
@@ -501,7 +508,7 @@ private:
 		else if (bBaseType.isFloat() && !aBaseType.isFloat())
 			outA = m_simpleConvert(expr::TokenType_Float, outA);
 
-		if (op == '-' || op == '+' || op == '/' || op == '%' || (op == '*' && !bBaseType.isFloat() && !aBaseType.isFloat())) {
+		if (op != '*' || (op == '*' && !bBaseType.isFloat() && !aBaseType.isFloat())) {
 			if (aType->isVector() && !bType->isVector()) {
 				switch (aType->getVectorComponentCount()) {
 				case 2: outB = bb->opCompositeConstruct(a->getTypeInstr(), outB, outB); break;
@@ -757,7 +764,7 @@ int main()
 			break;
 		}
 
-	if (!hasNullVar) {
+	if (!hasNullVar && !parser.Error()) {
 		Compiler comp(&module, root);
 		for (const auto& pair : vars)
 			comp.SetVariable(pair.first, pair.second);

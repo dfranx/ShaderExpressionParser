@@ -87,9 +87,24 @@ namespace expr
 				if (m_access->Object == nullptr)
 					m_hasError = true;
 			} break;
+			case expr::NodeType::MethodCall: {
+				expr::MethodCallNode* mcall = ((expr::MethodCallNode*)node);
+				if (mcall->Object == nullptr)
+					m_hasError = true;
+				for (int i = 0; i < mcall->Arguments.size(); i++)
+					if (mcall->Arguments[i] == nullptr) {
+						m_hasError = true;
+						break;
+					}
+			} break;
 			case expr::NodeType::Cast: {
 				expr::CastNode* cast = ((expr::CastNode*)node);
 				if (cast->Object == nullptr)
+					m_hasError = true;
+			} break;
+			case expr::NodeType::TernaryExpression: {
+				expr::TernaryExpressionNode* texpr = ((expr::TernaryExpressionNode*)node);
+				if (texpr->Condition == nullptr || texpr->OnTrue == nullptr || texpr->OnFalse == nullptr)
 					m_hasError = true;
 			} break;
 			}
