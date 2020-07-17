@@ -50,6 +50,7 @@ namespace expr
         Tokenizer(const char* buffer, size_t bufLength);
 
         bool Next();
+		void Undo();
 
         inline int GetTokenType() { return m_curType; }
         inline float GetFloatValue() { return m_floatValue; }
@@ -67,6 +68,10 @@ namespace expr
 
         char m_curIdentifier[256];
         int m_curType;
+
+        char m_prevIdentifier[256];
+		int m_prevType;
+		const char* m_tokenStart;
 
         float m_floatValue;
         int m_intValue;

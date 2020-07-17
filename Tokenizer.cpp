@@ -52,12 +52,22 @@ namespace expr
         };
     }
 
+	void Tokenizer::Undo()
+	{
+		memcpy(m_curIdentifier, m_prevIdentifier, 256);
+		m_curType = m_prevType;
+		m_buffer = m_tokenStart;
+    }
     bool Tokenizer::Next()
     {
         if (m_buffer >= m_bufferEnd || *m_buffer == '\0') {
             m_curType = -1;
             return false;
         }
+
+		memcpy(m_prevIdentifier, m_curIdentifier, 256);
+		m_prevType = m_curType;
+        m_tokenStart = m_buffer;
 
         // skip white space
         while (m_buffer != m_bufferEnd && isspace(m_buffer[0]))

@@ -291,14 +291,24 @@ namespace expr
 			bool canHaveMember = false;
 			if (m_isType(m_token.GetTokenType())) {
 				int castType = m_token.GetTokenType();
+
 				m_eat(castType);
-				m_eat(')');
 
-				CastNode* node = (CastNode*)m_allocateNode<CastNode>();
-				node->Object = m_parseValue();
-				node->Type = castType;
+				if (!m_isToken(')')) {
+					m_token.Undo();
 
-				ret = node;
+					canHaveMember = true;
+					ret = m_parseTernaryExpression();
+					m_eat(')');
+				} else {
+					m_eat(')');
+
+					CastNode* node = (CastNode*)m_allocateNode<CastNode>();
+					node->Object = m_parseValue();
+					node->Type = castType;
+
+					ret = node;
+				}
 			} else {
 				canHaveMember = true;
 				ret = m_parseTernaryExpression();
