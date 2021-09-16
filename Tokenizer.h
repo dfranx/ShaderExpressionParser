@@ -47,7 +47,7 @@ namespace expr
 	class Tokenizer
 	{
 	public:
-        Tokenizer(const char* buffer, size_t bufLength);
+        Tokenizer(const char* buffer, unsigned int bufLength);
 
         bool Next();
 		void Undo();

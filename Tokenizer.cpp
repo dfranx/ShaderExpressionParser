@@ -5,7 +5,7 @@
 
 namespace expr
 {
-    Tokenizer::Tokenizer(const char* buffer, size_t bufLength)
+    Tokenizer::Tokenizer(const char* buffer, unsigned int bufLength)
     {
         m_curIdentifier[0] = 0;
         m_curType = 0;
